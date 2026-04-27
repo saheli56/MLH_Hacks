@@ -163,7 +163,9 @@ export async function searchMatchingIssues(
     `label:"good first issue" language:${lang} state:open`,
     `label:"help wanted" language:${lang} state:open`,
     `label:"good first issue" ${interest} state:open`,
-  ];
+    `label:"help wanted" ${interest} state:open`,
+    `${interest} state:open`,
+  ].filter(Boolean);
 
   const results = await Promise.all(queries.map((q) => searchIssues(q)));
   const allIssues = results.flat();
@@ -209,9 +211,8 @@ export async function searchMatchingIssues(
   }
 
   // Enrich with repo metadata (parallel, we already limited to 10)
-  const top = candidates;
   const enriched = await Promise.all(
-    top.map(async (c) => {
+    candidates.map(async (c) => {
       try {
         const res = await fetchWithRetry(
           `${GITHUB_API}/repos/${c.repoFullName}`
@@ -230,15 +231,16 @@ export async function searchMatchingIssues(
     })
   );
 
-  // Filter: min 50 stars, pushed within 6 months
-  return enriched.filter((c) => {
+  const filtered = enriched.filter((c) => {
     if (c.repoStars < 50) return false;
     if (c.repoLastPushed) {
       const pushed = new Date(c.repoLastPushed);
       if (pushed < sixMonthsAgo) return false;
     }
     return true;
-  }).slice(0, 10);
+  });
+
+  return (filtered.length > 0 ? filtered : enriched).slice(0, 10);
 }
 
 // ── Code Fetching ─────────────────────────────────────────
