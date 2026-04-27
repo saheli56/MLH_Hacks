@@ -9,10 +9,10 @@ export const FALLBACK_MODEL = "gemini-2.5-flash";
 const MAX_RETRIES = 3;
 const INITIAL_DELAY = 1000;
 
-function getClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+function getClient(customApiKey?: string): GoogleGenerativeAI {
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is not set");
+    throw new Error("GEMINI_API_KEY environment variable is not set and no API key provided");
   }
   return new GoogleGenerativeAI(apiKey);
 }
@@ -58,6 +58,7 @@ export async function callGemini(
   primaryModel: string,
   fallbackModel: string | undefined,
   prompt: string,
+  customApiKey?: string
 ): Promise<string> {
   const models = [primaryModel];
   if (fallbackModel) models.push(fallbackModel);
@@ -66,7 +67,7 @@ export async function callGemini(
     let delay = INITIAL_DELAY;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const client = getClient();
+        const client = getClient(customApiKey);
         const genModel = client.getGenerativeModel({
           model,
           generationConfig: { responseMimeType: "application/json" },
@@ -102,7 +103,8 @@ export async function callGeminiStreaming(
   primaryModel: string,
   fallbackModel: string | undefined,
   prompt: string,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  customApiKey?: string
 ): Promise<string> {
   const models = [primaryModel];
   if (fallbackModel) models.push(fallbackModel);
@@ -111,7 +113,7 @@ export async function callGeminiStreaming(
     let delay = INITIAL_DELAY;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const client = getClient();
+        const client = getClient(customApiKey);
         const genModel = client.getGenerativeModel({
           model,
           generationConfig: { responseMimeType: "application/json" },

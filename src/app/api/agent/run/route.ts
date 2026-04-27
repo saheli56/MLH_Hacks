@@ -9,7 +9,7 @@ export const maxDuration = 120; // Allow up to 2 minutes for the pipeline
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { githubUrl, interest } = body;
+    const { githubUrl, interest, githubToken, geminiKey } = body;
 
     if (!githubUrl || typeof githubUrl !== "string") {
       return new Response(
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const result = await runPipeline(username, interest || "", emit);
+          const result = await runPipeline(username, interest || "", emit, githubToken, geminiKey);
           // Save to Cache
           agentCache.set(username, interest || "", result);
         } catch (err) {

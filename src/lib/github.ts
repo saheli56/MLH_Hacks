@@ -13,12 +13,12 @@ const GITHUB_API = "https://api.github.com";
 const MAX_RETRIES = 3;
 const INITIAL_DELAY = 1000;
 
-function getHeaders(): Record<string, string> {
+function getHeaders(customToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
     "User-Agent": "OpenAgent/1.0",
   };
-  const token = process.env.GITHUB_TOKEN;
+  const token = customToken || process.env.GITHUB_TOKEN;
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -30,11 +30,12 @@ function getHeaders(): Record<string, string> {
 async function fetchWithRetry(
   url: string,
   retries = MAX_RETRIES,
-  delay = INITIAL_DELAY
+  delay = INITIAL_DELAY,
+  customToken?: string
 ): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(url, { headers: getHeaders() });
+      const res = await fetch(url, { headers: getHeaders(customToken) });
 
       // Rate limit handling
       const remaining = res.headers.get("x-ratelimit-remaining");
@@ -99,36 +100,45 @@ function sleep(ms: number) {
 // ── Profile Data ──────────────────────────────────────────
 
 export async function fetchProfile(
-  username: string
+  username: string,
+  customToken?: string
 ): Promise<GitHubProfile> {
-  const res = await fetchWithRetry(`${GITHUB_API}/users/${username}`);
+  const res = await fetchWithRetry(`${GITHUB_API}/users/${username}`, MAX_RETRIES, INITIAL_DELAY, customToken);
   return res.json();
 }
 
-export async function fetchRepos(username: string): Promise<GitHubRepo[]> {
+export async function fetchRepos(username: string, customToken?: string): Promise<GitHubRepo[]> {
   const res = await fetchWithRetry(
-    `${GITHUB_API}/users/${username}/repos?sort=updated&per_page=20&type=owner`
+    `${GITHUB_API}/users/${username}/repos?sort=updated&per_page=20&type=owner`,
+    MAX_RETRIES,
+    INITIAL_DELAY,
+    customToken
   );
   return res.json();
 }
 
 export async function fetchEvents(
-  username: string
+  username: string,
+  customToken?: string
 ): Promise<GitHubEvent[]> {
   const res = await fetchWithRetry(
-    `${GITHUB_API}/users/${username}/events/public?per_page=30`
+    `${GITHUB_API}/users/${username}/events/public?per_page=30`,
+    MAX_RETRIES,
+    INITIAL_DELAY,
+    customToken
   );
   return res.json();
 }
 
 /** Fetch all GitHub data for a user in parallel */
 export async function fetchGitHubData(
-  username: string
+  username: string,
+  customToken?: string
 ): Promise<GitHubData> {
   const [profile, repos, events] = await Promise.all([
-    fetchProfile(username),
-    fetchRepos(username),
-    fetchEvents(username),
+    fetchProfile(username, customToken),
+    fetchRepos(username, customToken),
+    fetchEvents(username, customToken),
   ]);
   return { profile, repos, events };
 }
@@ -141,11 +151,12 @@ interface IssueSearchResponse {
 }
 
 export async function searchIssues(
-  query: string
+  query: string,
+  customToken?: string
 ): Promise<GitHubIssueSearchItem[]> {
   const encodedQuery = encodeURIComponent(query);
   const url = `${GITHUB_API}/search/issues?q=${encodedQuery}&sort=updated&order=desc&per_page=10`;
-  const res = await fetchWithRetry(url);
+  const res = await fetchWithRetry(url, MAX_RETRIES, INITIAL_DELAY, customToken);
   const data: IssueSearchResponse = await res.json();
   return data.items || [];
 }
@@ -153,7 +164,8 @@ export async function searchIssues(
 /** Search for matching issues using multiple queries in parallel */
 export async function searchMatchingIssues(
   primaryLangs: string[],
-  interest: string
+  interest: string,
+  customToken?: string
 ): Promise<CandidateIssue[]> {
   const lang = primaryLangs[0] || "javascript";
   const sixMonthsAgo = new Date();
@@ -167,7 +179,7 @@ export async function searchMatchingIssues(
     `${interest} state:open`,
   ].filter(Boolean);
 
-  const results = await Promise.all(queries.map((q) => searchIssues(q)));
+  const results = await Promise.all(queries.map((q) => searchIssues(q, customToken)));
   const allIssues = results.flat();
 
   // Deduplicate by issue id
@@ -215,7 +227,10 @@ export async function searchMatchingIssues(
     candidates.map(async (c) => {
       try {
         const res = await fetchWithRetry(
-          `${GITHUB_API}/repos/${c.repoFullName}`
+          `${GITHUB_API}/repos/${c.repoFullName}`,
+          MAX_RETRIES,
+          INITIAL_DELAY,
+          customToken
         );
         const repo = await res.json();
         return {
@@ -255,10 +270,11 @@ interface RepoContentItem {
 export async function fetchRepoContents(
   owner: string,
   repo: string,
-  path = ""
+  path = "",
+  customToken?: string
 ): Promise<RepoContentItem[]> {
   const url = `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}`;
-  const res = await fetchWithRetry(url);
+  const res = await fetchWithRetry(url, MAX_RETRIES, INITIAL_DELAY, customToken);
   const data = await res.json();
   if (Array.isArray(data)) {
     return data.map((item: RepoContentItem) => ({
@@ -274,10 +290,11 @@ export async function fetchRepoContents(
 export async function fetchFileContent(
   owner: string,
   repo: string,
-  path: string
+  path: string,
+  customToken?: string
 ): Promise<string> {
   const url = `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}`;
-  const res = await fetchWithRetry(url);
+  const res = await fetchWithRetry(url, MAX_RETRIES, INITIAL_DELAY, customToken);
   const data = await res.json();
   if (data.content && data.encoding === "base64") {
     return Buffer.from(data.content, "base64").toString("utf-8");
@@ -366,10 +383,11 @@ export function extractUsername(githubUrl: string): string | null {
 export async function fetchContributors(
   owner: string,
   repo: string,
-  per_page = 10
+  per_page = 10,
+  customToken?: string
 ): Promise<any[]> {
   const url = `${GITHUB_API}/repos/${owner}/${repo}/contributors?per_page=${per_page}&anon=0`;
-  const res = await fetchWithRetry(url);
+  const res = await fetchWithRetry(url, MAX_RETRIES, INITIAL_DELAY, customToken);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
 }
@@ -381,7 +399,8 @@ export async function fetchContributors(
  */
 export async function getRepositoryMaintainers(
   owner: string,
-  repo: string
+  repo: string,
+  customToken?: string
 ): Promise<{ login: string; avatar_url?: string; html_url?: string; contributions?: number; source: string }[]> {
   // Try CODEOWNERS first (cheap if file exists in repo contents call)
   const codeownersPaths = [
@@ -395,7 +414,7 @@ export async function getRepositoryMaintainers(
 
   for (const p of codeownersPaths) {
     try {
-      const content = await fetchFileContent(owner, repo, p);
+      const content = await fetchFileContent(owner, repo, p, customToken);
       if (content) {
         const lines = content.split(/\r?\n/);
         for (const line of lines) {
@@ -421,7 +440,7 @@ export async function getRepositoryMaintainers(
   // If no CODEOWNERS, use top contributors (one API call)
   if (maintainers.length === 0) {
     try {
-      const contributors = await fetchContributors(owner, repo, 10);
+      const contributors = await fetchContributors(owner, repo, 10, customToken);
       for (const c of contributors.slice(0, 6)) {
         if (!c || !c.login) continue;
         maintainers.push({
@@ -439,7 +458,7 @@ export async function getRepositoryMaintainers(
 
   // Always ensure repo owner is present as a fallback
   try {
-    const repoRes = await fetchWithRetry(`${GITHUB_API}/repos/${owner}/${repo}`);
+    const repoRes = await fetchWithRetry(`${GITHUB_API}/repos/${owner}/${repo}`, MAX_RETRIES, INITIAL_DELAY, customToken);
     const repoData = await repoRes.json();
     const ownerLogin = repoData?.owner?.login;
     const ownerAvatar = repoData?.owner?.avatar_url;
@@ -466,12 +485,13 @@ export async function postIssueComment(
   owner: string,
   repo: string,
   issueNumber: number,
-  body: string
+  body: string,
+  customToken?: string
 ) {
   const url = `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { ...getHeaders(), "Content-Type": "application/json" },
+    headers: { ...getHeaders(customToken), "Content-Type": "application/json" },
     body: JSON.stringify({ body }),
   });
 

@@ -47,7 +47,9 @@ function makeEvent(
 export async function runPipeline(
   username: string,
   interest: string,
-  emit: EventEmitter
+  emit: EventEmitter,
+  customGithubToken?: string,
+  customGeminiKey?: string
 ): Promise<PipelineResult> {
   const result: PipelineResult = {
     githubData: null,
@@ -64,7 +66,7 @@ export async function runPipeline(
   emit(makeEvent("step_start", 1, "GitHub Profile Reader", "Fetching GitHub profile, repos, and recent activity..."));
 
   try {
-    result.githubData = await fetchGitHubData(username);
+    result.githubData = await fetchGitHubData(username, customGithubToken);
     const repoCount = result.githubData.repos.length;
     const langs = [...new Set(result.githubData.repos.map((r) => r.language).filter(Boolean))];
     const duration = Date.now() - stepStart;
@@ -106,7 +108,7 @@ export async function runPipeline(
     const prompt = buildSkillExtractionPrompt(result.githubData);
     const rawResponse = await callGeminiStreaming(REASONING_MODEL, FALLBACK_MODEL, prompt, (chunk) => {
       emit(makeEvent("step_log", 2, "Skill Extractor", chunk));
-    });
+    }, customGeminiKey);
 
     result.skillProfile = extractJSON<SkillProfile>(rawResponse);
     const duration = Date.now() - stepStart;
@@ -152,7 +154,8 @@ export async function runPipeline(
   try {
     result.candidateIssues = await searchMatchingIssues(
       result.skillProfile.primaryLanguages,
-      interest
+      interest,
+      customGithubToken
     );
     const duration = Date.now() - stepStart;
 
@@ -207,7 +210,9 @@ export async function runPipeline(
       try {
         const contents = await fetchRepoContents(
           candidate.repoOwner,
-          candidate.repoName
+          candidate.repoName,
+          "",
+          customGithubToken
         );
         const repoStructure = contents.map((c) => `${c.type === "dir" ? "📁" : "📄"} ${c.path}`);
 
@@ -226,7 +231,8 @@ export async function runPipeline(
             fileContent = await fetchFileContent(
               candidate.repoOwner,
               candidate.repoName,
-              relevantPath
+              relevantPath,
+              customGithubToken
             );
             // Truncate to 300 lines
             const lines = fileContent.split("\n");
@@ -297,7 +303,7 @@ export async function runPipeline(
     const prompt = buildFitScoringPrompt(result.skillProfile, result.codeContexts);
     const rawResponse = await callGeminiStreaming(REASONING_MODEL, FALLBACK_MODEL, prompt, (chunk) => {
       emit(makeEvent("step_log", 5, "Fit Scorer", chunk));
-    });
+    }, customGeminiKey);
 
     const scores = extractJSON<Array<{
       issueIndex: number;
@@ -370,7 +376,7 @@ export async function runPipeline(
     );
     const rawResponse = await callGeminiStreaming(LITE_MODEL, FALLBACK_MODEL, prompt, (chunk) => {
       emit(makeEvent("step_log", 6, "Comment Drafter", chunk));
-    });
+    }, customGeminiKey);
 
     const comments = extractJSON<Array<{
       issueIndex: number;
@@ -418,7 +424,7 @@ export async function runPipeline(
     const prompt = buildCursorPromptGeneration(result.rankedIssues);
     const rawResponse = await callGeminiStreaming(LITE_MODEL, FALLBACK_MODEL, prompt, (chunk) => {
       emit(makeEvent("step_log", 7, "Cursor Prompt Generator", chunk));
-    });
+    }, customGeminiKey);
 
     const prompts = extractJSON<Array<{
       issueIndex?: number;

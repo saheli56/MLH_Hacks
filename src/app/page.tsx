@@ -9,6 +9,8 @@ import { RunButton } from "@/components/input/RunButton";
 import { PipelineTrace } from "@/components/agent-mode/PipelineTrace";
 import { SkillProfile } from "@/components/user-mode/SkillProfile";
 import { IssueCard } from "@/components/user-mode/IssueCard";
+import { APIKeyModal } from "@/components/shared/APIKeyModal";
+import { useAPIKeys } from "@/contexts/APIKeyContext";
 import type {
   ViewMode,
   StepState,
@@ -46,6 +48,7 @@ const initialResult: PipelineResult = {
 // ── Page ──────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { apiKeys } = useAPIKeys();
   const [githubUrl, setGithubUrl] = useState("");
   const [interest, setInterest] = useState("");
   const [mode, setMode] = useState<ViewMode>("agent");
@@ -56,6 +59,7 @@ export default function HomePage() {
   const [result, setResult] = useState<PipelineResult>(initialResult);
   const [error, setError] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isAPIKeyModalOpen, setIsAPIKeyModalOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const isValidUrl = useCallback((url: string) => {
@@ -92,7 +96,12 @@ export default function HomePage() {
       const response = await fetch("/api/agent/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ githubUrl: url.trim(), interest: intr.trim() }),
+        body: JSON.stringify({ 
+          githubUrl: url.trim(), 
+          interest: intr.trim(),
+          githubToken: apiKeys.GITHUB_TOKEN,
+          geminiKey: apiKeys.GEMINI_API_KEY,
+        }),
         signal: controller.signal,
       });
 
@@ -249,12 +258,18 @@ export default function HomePage() {
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onBack={handleBackHome}
         onForward={handleForwardToResults}
+        onSettingsOpen={() => setIsAPIKeyModalOpen(true)}
       />
 
       <HistorySidebar
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         onSelect={(url, intr) => handleRun({ url, interest: intr })}
+      />
+
+      <APIKeyModal
+        isOpen={isAPIKeyModalOpen}
+        onClose={() => setIsAPIKeyModalOpen(false)}
       />
 
       <main className="flex-1">
