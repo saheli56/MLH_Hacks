@@ -239,6 +239,18 @@ export default function HomePage() {
     }
     setIsRunning(false);
     setShowResults(false);
+    setIsComplete(false);
+    setError(null);
+    setMode("agent");
+  };
+
+  const handleHome = () => {
+    if (isRunning && abortRef.current) {
+      abortRef.current.abort();
+    }
+    setIsRunning(false);
+    setIsComplete(false);
+    setShowResults(false);
     setError(null);
     setMode("agent");
   };
@@ -258,6 +270,7 @@ export default function HomePage() {
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onBack={handleBackHome}
         onForward={handleForwardToResults}
+        onHome={handleHome}
         onSettingsOpen={() => setIsAPIKeyModalOpen(true)}
       />
 

@@ -3,7 +3,7 @@
 import { ModeToggle } from "./ModeToggle";
 import type { ViewMode } from "@/lib/types";
 import { GitHubIcon } from "./GitHubIcon";
-import { History, ArrowLeft, ArrowRight, Settings } from "lucide-react";
+import { History, Home, ArrowLeft, ArrowRight, Settings } from "lucide-react";
 
 interface HeaderProps {
   mode: ViewMode;
@@ -12,10 +12,11 @@ interface HeaderProps {
   onHistoryOpen: () => void;
   onBack?: () => void;
   onForward?: () => void;
+  onHome?: () => void;
   onSettingsOpen?: () => void;
 }
 
-export function Header({ mode, onModeToggle, showToggle = false, onHistoryOpen, onBack, onForward, onSettingsOpen }: HeaderProps) {
+export function Header({ mode, onModeToggle, showToggle = false, onHistoryOpen, onBack, onForward, onHome, onSettingsOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 glass-surface border-b border-border">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -53,6 +54,17 @@ export function Header({ mode, onModeToggle, showToggle = false, onHistoryOpen, 
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Home Button */}
+          {onHome && (
+            <button
+              onClick={onHome}
+              aria-label="Home"
+              className="p-1.5 rounded-lg border border-border bg-white/5 hover:bg-white/10 transition-colors text-text-muted hover:text-text-primary"
+            >
+              <Home className="w-4 h-4" />
+            </button>
+          )}
+
           {/* History Button */}
           <button
             onClick={onHistoryOpen}
