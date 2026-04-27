@@ -90,23 +90,59 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                 </div>
               ) : (
                 history.map((item, i) => (
-                  <motion.button
+                  <motion.div
                     key={`${item.username}-${item.timestamp}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    onClick={() => {
-                      onSelect(item.username, item.interest);
-                      onClose();
-                    }}
                     className="w-full text-left p-4 rounded-xl border border-border/50 bg-white/5 hover:bg-white/10 hover:border-accent/30 transition-all group relative overflow-hidden"
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelect(item.username, item.interest);
+                        onClose();
+                      }}
+                      className="absolute inset-0 z-10"
+                    />
+                    <div className="flex items-center justify-between mb-2 relative z-20">
                       <div className="flex items-center gap-1.5 text-[10px] font-medium text-accent uppercase tracking-wider">
                         <Clock className="w-3 h-3" />
                         {formatDistanceToNow(item.timestamp)} ago
                       </div>
                       <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
+                      <button
+                        type="button"
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          try {
+                            await fetch("/api/agent/history", {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                username: item.username,
+                                interest: item.interest,
+                              }),
+                            });
+                            setHistory((prev) =>
+                              prev.filter(
+                                (entry) =>
+                                  !(
+                                    entry.username === item.username &&
+                                    entry.interest === item.interest &&
+                                    entry.timestamp === item.timestamp
+                                  )
+                              )
+                            );
+                          } catch (err) {
+                            console.error("Failed to delete history entry:", err);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center p-2 rounded-md text-text-muted hover:text-error hover:bg-white/10 transition-colors"
+                        title="Delete history entry"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                     
                     <div className="space-y-2">
@@ -123,7 +159,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                         </span>
                       </div>
                     </div>
-                  </motion.button>
+                  </motion.div>
                 ))
               )}
             </div>

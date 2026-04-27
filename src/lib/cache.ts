@@ -65,6 +65,15 @@ class CacheSystem {
     this.saveCache();
   }
 
+  public delete(username: string, interest: string): boolean {
+    const key = this.getKey(username, interest);
+    const deleted = this.cache.delete(key);
+    if (deleted) {
+      this.saveCache();
+    }
+    return deleted;
+  }
+
   public getAll(): CacheEntry[] {
     return Array.from(this.cache.values()).sort((a, b) => b.timestamp - a.timestamp);
   }
