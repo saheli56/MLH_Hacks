@@ -421,16 +421,41 @@ export async function runPipeline(
     });
 
     const prompts = extractJSON<Array<{
-      issueIndex: number;
+      issueIndex?: number;
       prompt: string;
+      issueNumber?: number;
+      title?: string;
     }>>(rawResponse);
 
     result.cursorPrompts = prompts
-      .filter((p) => p.issueIndex < result.rankedIssues.length)
-      .map((p) => ({
-        rankedIssue: result.rankedIssues[p.issueIndex],
-        prompt: p.prompt,
-      }));
+      .map((p) => {
+        let rankedIssue = typeof p.issueIndex === "number"
+          ? result.rankedIssues[p.issueIndex]
+          : undefined;
+
+        if (!rankedIssue && typeof p.issueIndex === "number") {
+          const altIndex = p.issueIndex - 1;
+          if (altIndex >= 0 && altIndex < result.rankedIssues.length) {
+            rankedIssue = result.rankedIssues[altIndex];
+          }
+        }
+
+        if (!rankedIssue && typeof p.issueNumber === "number") {
+          rankedIssue = result.rankedIssues.find(
+            (ri) => ri.candidate.issue.number === p.issueNumber
+          );
+        }
+
+        if (!rankedIssue && typeof p.title === "string") {
+          rankedIssue = result.rankedIssues.find(
+            (ri) => ri.candidate.issue.title === p.title
+          );
+        }
+
+        if (!rankedIssue) return null;
+        return { rankedIssue, prompt: p.prompt };
+      })
+      .filter((item): item is { rankedIssue: RankedIssue; prompt: string } => Boolean(item));
 
     const duration = Date.now() - stepStart;
     emit(
