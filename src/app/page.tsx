@@ -51,6 +51,7 @@ export default function HomePage() {
   const [mode, setMode] = useState<ViewMode>("agent");
   const [isRunning, setIsRunning] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [showResults, setShowResults] = useState(false);
   const [steps, setSteps] = useState<StepState[]>(createInitialSteps());
   const [result, setResult] = useState<PipelineResult>(initialResult);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export default function HomePage() {
     if (!isValidUrl(url)) return;
 
     setIsRunning(true);
+    setShowResults(true);
     setIsComplete(false);
     setError(null);
     setSteps(createInitialSteps());
@@ -219,18 +221,23 @@ export default function HomePage() {
     }
   }, []);
 
-  const hasStarted = isRunning || isComplete;
+  const hasStarted = isRunning || isComplete || showResults;
+  const canGoToResults = result.githubData !== null && !showResults;
 
   const handleBackHome = () => {
     if (isRunning && abortRef.current) {
       abortRef.current.abort();
     }
-    setIsComplete(false);
     setIsRunning(false);
-    setSteps(createInitialSteps());
-    setResult(initialResult);
+    setShowResults(false);
     setError(null);
     setMode("agent");
+  };
+
+  const handleForwardToResults = () => {
+    if (canGoToResults) {
+      setShowResults(true);
+    }
   };
 
   return (
@@ -240,6 +247,8 @@ export default function HomePage() {
         onModeToggle={setMode}
         showToggle={hasStarted}
         onHistoryOpen={() => setIsHistoryOpen(true)}
+        onBack={handleBackHome}
+        onForward={handleForwardToResults}
       />
 
       <HistorySidebar
@@ -250,7 +259,7 @@ export default function HomePage() {
 
       <main className="flex-1">
         <AnimatePresence mode="wait">
-          {!hasStarted ? (
+          {!showResults ? (
             /* ── Input Screen ──────────────────────── */
             <motion.div
               key="input"
@@ -306,12 +315,22 @@ export default function HomePage() {
                   <GithubInput value={githubUrl} onChange={setGithubUrl} />
                   <InterestInput value={interest} onChange={setInterest} />
 
-                  <div className="pt-2">
+                  <div className="pt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <RunButton
                       onClick={() => handleRun()}
                       disabled={!isValidUrl(githubUrl)}
                       loading={isRunning}
                     />
+                    {canGoToResults && (
+                      <button
+                        type="button"
+                        onClick={handleForwardToResults}
+                        className="inline-flex items-center justify-center rounded-xl border border-border/50 bg-background px-4 py-3 text-sm font-medium text-text-primary hover:border-accent/40 hover:bg-accent/5 transition-colors"
+                      >
+                        <ArrowRight className="w-4 h-4 mr-2" />
+                        View previous results
+                      </button>
+                    )}
                   </div>
                 </motion.div>
 
