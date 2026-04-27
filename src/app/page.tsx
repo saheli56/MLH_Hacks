@@ -16,7 +16,7 @@ import type {
   PipelineEvent,
 } from "@/lib/types";
 import { STEP_NAMES } from "@/lib/types";
-import { ArrowLeft, ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork } from "lucide-react";
+import { ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork } from "lucide-react";
 import { GitHubIcon } from "@/components/shared/GitHubIcon";
 import { HistorySidebar } from "@/components/shared/HistorySidebar";
 
@@ -259,7 +259,7 @@ export default function HomePage() {
 
       <main className="flex-1">
         <AnimatePresence mode="wait">
-          {!showResults ? (
+          {!hasStarted ? (
             /* ── Input Screen ──────────────────────── */
             <motion.div
               key="input"
@@ -321,16 +321,7 @@ export default function HomePage() {
                       disabled={!isValidUrl(githubUrl)}
                       loading={isRunning}
                     />
-                    {canGoToResults && (
-                      <button
-                        type="button"
-                        onClick={handleForwardToResults}
-                        className="inline-flex items-center justify-center rounded-xl border border-border/50 bg-background px-4 py-3 text-sm font-medium text-text-primary hover:border-accent/40 hover:bg-accent/5 transition-colors"
-                      >
-                        <ArrowRight className="w-4 h-4 mr-2" />
-                        View previous results
-                      </button>
-                    )}
+                    
                   </div>
                 </motion.div>
 
@@ -368,16 +359,7 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
               className="max-w-6xl mx-auto px-6 py-6"
             >
-              <div className="mb-6">
-                <button
-                  type="button"
-                  onClick={handleBackHome}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-text-muted hover:text-text-primary transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to home
-                </button>
-              </div>
+              
               {/* Error Banner */}
               {error && (
                 <motion.div
