@@ -16,7 +16,7 @@ import type {
   PipelineEvent,
 } from "@/lib/types";
 import { STEP_NAMES } from "@/lib/types";
-import { ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork } from "lucide-react";
+import { ArrowLeft, ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork } from "lucide-react";
 import { GitHubIcon } from "@/components/shared/GitHubIcon";
 import { HistorySidebar } from "@/components/shared/HistorySidebar";
 
@@ -221,6 +221,18 @@ export default function HomePage() {
 
   const hasStarted = isRunning || isComplete;
 
+  const handleBackHome = () => {
+    if (isRunning && abortRef.current) {
+      abortRef.current.abort();
+    }
+    setIsComplete(false);
+    setIsRunning(false);
+    setSteps(createInitialSteps());
+    setResult(initialResult);
+    setError(null);
+    setMode("agent");
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header
@@ -337,6 +349,16 @@ export default function HomePage() {
               transition={{ duration: 0.3 }}
               className="max-w-6xl mx-auto px-6 py-6"
             >
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={handleBackHome}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-text-muted hover:text-text-primary transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to home
+                </button>
+              </div>
               {/* Error Banner */}
               {error && (
                 <motion.div
