@@ -17,6 +17,7 @@ import type { RankedIssue } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useAPIKeys } from "@/contexts/APIKeyContext";
 
 interface IssueCardProps {
   rankedIssue: RankedIssue;
@@ -95,10 +96,14 @@ export function IssueCard({
   const [maintainers, setMaintainers] = useState<any[] | null>(null);
   const [loadingMaintainers, setLoadingMaintainers] = useState(false);
 
+  const { apiKeys } = useAPIKeys();
+
   // Triage state
   const [triageData, setTriageData] = useState<any | null>(null);
   const [triageLoading, setTriageLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [postStatus, setPostStatus] = useState<string | null>(null);
 
   const fetchMaintainers = async () => {
     if (maintainers !== null) return; // already fetched or empty
@@ -135,6 +140,7 @@ export function IssueCard({
           issueNumber: candidate.issue.number,
           title: candidate.issue.title,
           body: candidate.issue.body,
+          githubToken: apiKeys.GITHUB_TOKEN,
         }),
       });
       const data = await res.json();
@@ -151,7 +157,13 @@ export function IssueCard({
 
   const handlePostComment = async () => {
     if (!triageData || !triageData.comment) return;
+    if (!apiKeys.GITHUB_TOKEN) {
+      setPostStatus("GitHub token required to post a comment.");
+      return;
+    }
+
     setPostingComment(true);
+    setPostStatus(null);
     try {
       const res = await fetch(`/api/github/triage`, {
         method: "POST",
@@ -162,14 +174,16 @@ export function IssueCard({
           repo: candidate.repoName,
           issueNumber: candidate.issue.number,
           comment: triageData.comment,
+          githubToken: apiKeys.GITHUB_TOKEN,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to post comment");
-      // Replace triage comment with posted result url if available
-      setTriageData((prev: any) => ({ ...prev, posted: data.result }));
+      setTriageData((prev: any) => ({ ...prev, posted: true, postResult: data.result }));
+      setPostStatus("Comment posted successfully.");
     } catch (e) {
       setTriageData((prev: any) => ({ ...prev, postError: e instanceof Error ? e.message : String(e) }));
+      setPostStatus(e instanceof Error ? e.message : String(e));
     } finally {
       setPostingComment(false);
     }
@@ -396,20 +410,43 @@ export function IssueCard({
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2">
                       <Button onClick={handlePostComment} disabled={postingComment || !triageData.comment}>
                         {postingComment ? "Posting…" : "Post Comment"}
                       </Button>
-                      <Button variant="ghost" onClick={() => { if (triageData.prUrl) window.open(triageData.prUrl, "_blank"); }}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          const targetUrl = triageData?.prUrl || (triageData?.prTemplate?.title && triageData?.prTemplate?.body
+                            ? `https://github.com/${candidate.repoFullName}/compare?expand=1&title=${encodeURIComponent(triageData.prTemplate.title)}&body=${encodeURIComponent(triageData.prTemplate.body)}`
+                            : "");
+                          if (targetUrl) {
+                            window.open(targetUrl, "_blank", "noopener,noreferrer");
+                          }
+                        }}
+                        disabled={!triageData?.prUrl && !(triageData?.prTemplate?.title && triageData?.prTemplate?.body)}
+                      >
                         Open PR Draft
                       </Button>
-                      <Button variant="outline" onClick={() => { navigator.clipboard.writeText(triageData.prTemplate?.body || ""); }}>
+                      <Button
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(triageData.prTemplate?.body || "");
+                            setCopyStatus("PR template copied to clipboard.");
+                          } catch (copyError) {
+                            setCopyStatus("Unable to copy PR template.");
+                          }
+                        }}
+                        disabled={!triageData?.prTemplate?.body}
+                      >
                         Copy PR Template
                       </Button>
                     </div>
-
-                    {triageData.posted && <div className="text-sm text-muted-foreground">Comment posted.</div>}
-                    {triageData.postError && <div className="text-sm text-destructive">{triageData.postError}</div>}
+                    {copyStatus && <div className="text-xs text-muted-foreground">{copyStatus}</div>}
+                    {postStatus && <div className={`text-xs ${postStatus.includes("success") ? "text-emerald-500" : "text-destructive"}`}>{postStatus}</div>}
+                    </div>
                   </div>
                 )}
 

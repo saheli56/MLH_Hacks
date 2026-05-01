@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
       };
 
       try {
+        const fallbackResult = fallback();
+
         const commentPrompt = buildSingleCommentDraftPrompt(
           owner,
           repo,
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
         const commentJson = extractJSON<Array<{ issueIndex: number; comment: string }>>(
           rawComment
         );
-        const comment = commentJson[0]?.comment?.trim();
+        const comment = commentJson[0]?.comment?.trim() || fallbackResult.comment;
 
         const prPrompt = buildSinglePRDraftPrompt(
           owner,
@@ -58,46 +60,44 @@ export async function POST(request: NextRequest) {
         const prJson = extractJSON<Array<{ issueIndex: number; title: string; body: string }>>(
           rawPr
         );
-        const prTemplate = prJson[0]
+        const prTemplate = prJson[0]?.title && prJson[0]?.body
           ? { title: prJson[0].title.trim(), body: prJson[0].body.trim() }
-          : { title: `Fix: ${title}`, body: `Closes #${issueNumber}.` };
+          : fallbackResult.prTemplate;
 
         const prUrl = buildPRDraftUrl(owner, repo, prTemplate.title, prTemplate.body);
+        const usedFallback = !commentJson[0]?.comment || !prJson[0]?.title || !prJson[0]?.body;
 
         return new Response(
-          JSON.stringify({ comment, prTemplate, prUrl, fallback: false }),
+          JSON.stringify({ comment, prTemplate, prUrl, fallback: usedFallback }),
           {
             headers: { "Content-Type": "application/json" },
           }
         );
       } catch (err) {
-        if (isQuotaError(err)) {
-          const response = fallback();
-          return new Response(JSON.stringify({
-            ...response,
-            error: err instanceof Error ? err.message : String(err),
-          }), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        throw err;
+        const response = fallback();
+        return new Response(JSON.stringify({
+          ...response,
+          error: err instanceof Error ? err.message : String(err),
+        }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
     }
 
     if (action === "applyComment") {
-      const { owner, repo, issueNumber, comment } = payload;
+      const { owner, repo, issueNumber, comment, githubToken } = payload;
       if (!owner || !repo || !issueNumber || !comment) {
         return new Response(JSON.stringify({ error: "owner, repo, issueNumber, and comment are required" }), { status: 400 });
       }
 
-      if (!process.env.GITHUB_TOKEN) {
+      if (!githubToken && !process.env.GITHUB_TOKEN) {
         return new Response(
-          JSON.stringify({ error: "Server missing GITHUB_TOKEN" }),
+          JSON.stringify({ error: "Server missing GITHUB_TOKEN and no token was provided" }),
           { status: 500 }
         );
       }
 
-      const res = await postIssueComment(owner, repo, Number(issueNumber), comment);
+      const res = await postIssueComment(owner, repo, Number(issueNumber), comment, githubToken);
       return new Response(JSON.stringify({ ok: true, result: res }), {
         headers: { "Content-Type": "application/json" },
       });
