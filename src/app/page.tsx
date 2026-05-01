@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/shared/Header";
 import { GithubInput } from "@/components/input/GithubInput";
+import { RepoInput } from "@/components/input/RepoInput";
 import { InterestInput } from "@/components/input/InterestInput";
 import { RunButton } from "@/components/input/RunButton";
 import { PipelineTrace } from "@/components/agent-mode/PipelineTrace";
@@ -50,6 +51,7 @@ const initialResult: PipelineResult = {
 export default function HomePage() {
   const { apiKeys } = useAPIKeys();
   const [githubUrl, setGithubUrl] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
   const [interest, setInterest] = useState("");
   const [mode, setMode] = useState<ViewMode>("agent");
   const [isRunning, setIsRunning] = useState(false);
@@ -71,11 +73,21 @@ export default function HomePage() {
     );
   }, []);
 
-  const handleRun = useCallback(async (overrides?: { url: string; interest: string }) => {
+  const isValidRepoUrl = useCallback((url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) return true;
+    return (
+      /^(?:https?:\/\/)?(?:www\.)?github\.com\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\/.*)?$/.test(trimmed) ||
+      /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(trimmed)
+    );
+  }, []);
+
+  const handleRun = useCallback(async (overrides?: { url: string; interest: string; repo?: string }) => {
     const url = overrides ? overrides.url : githubUrl;
+    const repo = overrides ? overrides.repo || "" : repoUrl;
     const intr = overrides ? overrides.interest : interest;
     
-    if (!isValidUrl(url)) return;
+    if (!isValidUrl(url) || !isValidRepoUrl(repo)) return;
 
     setIsRunning(true);
     setShowResults(true);
@@ -86,6 +98,7 @@ export default function HomePage() {
     
     if (overrides) {
       setGithubUrl(overrides.url);
+      setRepoUrl(overrides.repo || "");
       setInterest(overrides.interest);
     }
 
@@ -98,6 +111,7 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           githubUrl: url.trim(), 
+          repoUrl: repo.trim(),
           interest: intr.trim(),
           githubToken: apiKeys.GITHUB_TOKEN,
           geminiKey: apiKeys.GEMINI_API_KEY,
@@ -154,7 +168,7 @@ export default function HomePage() {
       setIsRunning(false);
       setIsComplete(true);
     }
-  }, [githubUrl, interest, isValidUrl]);
+  }, [githubUrl, interest, repoUrl, isValidUrl, isValidRepoUrl]);
 
   const handleEvent = useCallback((event: PipelineEvent) => {
     switch (event.type) {
@@ -277,7 +291,7 @@ export default function HomePage() {
       <HistorySidebar
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
-        onSelect={(url, intr) => handleRun({ url, interest: intr })}
+        onSelect={(url, intr, repo) => handleRun({ url, interest: intr, repo })}
       />
 
       <APIKeyModal
@@ -327,7 +341,7 @@ export default function HomePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
                   >
-                    Paste your GitHub profile. Tell us what interests you.
+                    Paste your GitHub profile and an optional repository. Tell us what interests you.
                     Our agent analyzes your skills, finds matching issues,
                     and generates everything you need to start contributing.
                   </motion.p>
@@ -341,15 +355,14 @@ export default function HomePage() {
                   transition={{ delay: 0.25 }}
                 >
                   <GithubInput value={githubUrl} onChange={setGithubUrl} />
+                  <RepoInput value={repoUrl} onChange={setRepoUrl} />
                   <InterestInput value={interest} onChange={setInterest} />
-
                   <div className="pt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <RunButton
                       onClick={() => handleRun()}
-                      disabled={!isValidUrl(githubUrl)}
+                      disabled={!isValidUrl(githubUrl) || !isValidRepoUrl(repoUrl)}
                       loading={isRunning}
                     />
-                    
                   </div>
                 </motion.div>
 

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { extractUsername } from "@/lib/github";
+import { extractUsername, extractRepoFullName } from "@/lib/github";
 import { runPipeline } from "@/lib/pipeline";
 import { agentCache } from "@/lib/cache";
 import type { PipelineEvent, PipelineResult } from "@/lib/types";
@@ -9,7 +9,7 @@ export const maxDuration = 120; // Allow up to 2 minutes for the pipeline
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { githubUrl, interest, githubToken, geminiKey } = body;
+    const { githubUrl, repoUrl, interest, githubToken, geminiKey } = body;
 
     if (!githubUrl || typeof githubUrl !== "string") {
       return new Response(
@@ -26,8 +26,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let repoFullName: string | undefined = undefined;
+    if (repoUrl && typeof repoUrl === "string") {
+      if (repoUrl.trim()) {
+        repoFullName = extractRepoFullName(repoUrl);
+        if (!repoFullName) {
+          return new Response(
+            JSON.stringify({ error: "Invalid repository URL or owner/repo path" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
     // Check Cache
-    const cachedResult = agentCache.get(username, interest || "");
+    const cachedResult = agentCache.get(username, interest || "", repoFullName);
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -66,9 +79,9 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const result = await runPipeline(username, interest || "", emit, githubToken, geminiKey);
+          const result = await runPipeline(username, interest || "", emit, githubToken, geminiKey, repoFullName);
           // Save to Cache
-          agentCache.set(username, interest || "", result);
+          agentCache.set(username, interest || "", repoFullName, result);
         } catch (err) {
           const errorEvent: PipelineEvent = {
             type: "step_error",

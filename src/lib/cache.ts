@@ -7,6 +7,7 @@ const CACHE_FILE = path.join(process.cwd(), "agent-cache.json");
 interface CacheEntry {
   username: string;
   interest: string;
+  repo?: string;
   result: PipelineResult;
   timestamp: number;
 }
@@ -18,8 +19,8 @@ class CacheSystem {
     this.loadCache();
   }
 
-  private getKey(username: string, interest: string): string {
-    return `${username.toLowerCase()}:${interest.toLowerCase()}`;
+  private getKey(username: string, interest: string, repo?: string): string {
+    return `${username.toLowerCase()}:${interest.toLowerCase()}:${(repo || "").toLowerCase()}`;
   }
 
   private loadCache() {
@@ -48,25 +49,26 @@ class CacheSystem {
     }
   }
 
-  public get(username: string, interest: string): PipelineResult | null {
-    const key = this.getKey(username, interest);
+  public get(username: string, interest: string, repo?: string): PipelineResult | null {
+    const key = this.getKey(username, interest, repo);
     const entry = this.cache.get(key);
     return entry ? entry.result : null;
   }
 
-  public set(username: string, interest: string, result: PipelineResult) {
-    const key = this.getKey(username, interest);
+  public set(username: string, interest: string, repo: string | undefined, result: PipelineResult) {
+    const key = this.getKey(username, interest, repo);
     this.cache.set(key, {
       username,
       interest,
+      repo,
       result,
       timestamp: Date.now(),
     });
     this.saveCache();
   }
 
-  public delete(username: string, interest: string): boolean {
-    const key = this.getKey(username, interest);
+  public delete(username: string, interest: string, repo?: string): boolean {
+    const key = this.getKey(username, interest, repo);
     const deleted = this.cache.delete(key);
     if (deleted) {
       this.saveCache();

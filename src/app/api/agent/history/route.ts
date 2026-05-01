@@ -6,6 +6,7 @@ export async function GET() {
     const history = agentCache.getAll().map((entry) => ({
       username: entry.username,
       interest: entry.interest,
+      repo: entry.repo,
       timestamp: entry.timestamp,
     }));
     return NextResponse.json(history);
@@ -22,6 +23,7 @@ export async function DELETE(request: NextRequest) {
     const data = await request.json();
     const username = typeof data.username === "string" ? data.username : "";
     const interest = typeof data.interest === "string" ? data.interest : "";
+    const repo = typeof data.repo === "string" ? data.repo : undefined;
 
     if (!username) {
       return NextResponse.json(
@@ -30,7 +32,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const deleted = agentCache.delete(username, interest);
+    const deleted = agentCache.delete(username, interest, repo);
     if (!deleted) {
       return NextResponse.json(
         { error: "History entry not found" },

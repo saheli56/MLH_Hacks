@@ -165,18 +165,22 @@ export async function searchIssues(
 export async function searchMatchingIssues(
   primaryLangs: string[],
   interest: string,
-  customToken?: string
+  customToken?: string,
+  repoFullName?: string
 ): Promise<CandidateIssue[]> {
   const lang = primaryLangs[0] || "javascript";
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const repoPrefix = repoFullName ? `repo:${repoFullName} ` : "";
 
   const queries = [
-    `label:"good first issue" language:${lang} state:open`,
-    `label:"help wanted" language:${lang} state:open`,
-    `label:"good first issue" ${interest} state:open`,
-    `label:"help wanted" ${interest} state:open`,
-    `${interest} state:open`,
+    `${repoPrefix}label:"good first issue" language:${lang} state:open`,
+    `${repoPrefix}label:"help wanted" language:${lang} state:open`,
+    `${repoPrefix}label:"good first issue" ${interest} state:open`,
+    `${repoPrefix}label:"help wanted" ${interest} state:open`,
+    `${repoPrefix}${interest} state:open`,
+    repoFullName ? `${repoPrefix}label:"good first issue" state:open` : "",
+    repoFullName ? `${repoPrefix}label:"help wanted" state:open` : "",
   ].filter(Boolean);
 
   const results = await Promise.all(queries.map((q) => searchIssues(q, customToken)));
@@ -376,6 +380,25 @@ export function extractUsername(githubUrl: string): string | null {
     /github\.com\/([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)\/?$/
   );
   return match ? match[1] : null;
+}
+
+export function extractRepoFullName(repoUrl: string): string | null {
+  const trimmed = repoUrl.trim();
+  if (!trimmed) return null;
+
+  const pathMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(?:\/.*)?$/
+  );
+  if (pathMatch) {
+    return `${pathMatch[1]}/${pathMatch[2]}`;
+  }
+
+  const directMatch = trimmed.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+  if (directMatch) {
+    return `${directMatch[1]}/${directMatch[2]}`;
+  }
+
+  return null;
 }
 
 // ── Maintainers / Contributors Helpers ─────────────────────────

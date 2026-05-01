@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, History, Clock, User, Target, ChevronRight } from "lucide-react";
+import { X, History, Clock, User, Target, ChevronRight, GitFork } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface HistoryItem {
   username: string;
   interest: string;
+  repo?: string;
   timestamp: number;
 }
 
 interface HistorySidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (username: string, interest: string) => void;
+  onSelect: (username: string, interest: string, repo?: string) => void;
 }
 
 export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProps) {
@@ -100,7 +101,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                     <button
                       type="button"
                       onClick={() => {
-                        onSelect(item.username, item.interest);
+                        onSelect(item.username, item.interest, item.repo);
                         onClose();
                       }}
                       className="absolute inset-0 z-10"
@@ -122,6 +123,7 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                               body: JSON.stringify({
                                 username: item.username,
                                 interest: item.interest,
+                                repo: item.repo,
                               }),
                             });
                             setHistory((prev) =>
@@ -152,6 +154,14 @@ export function HistorySidebar({ isOpen, onClose, onSelect }: HistorySidebarProp
                           {item.username}
                         </span>
                       </div>
+                      {item.repo && (
+                        <div className="flex items-center gap-2">
+                          <GitFork className="w-3.5 h-3.5 text-text-muted" />
+                          <span className="text-xs text-text-muted truncate">
+                            {item.repo}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Target className="w-3.5 h-3.5 text-text-muted" />
                         <span className="text-xs text-text-muted truncate">

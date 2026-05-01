@@ -49,7 +49,8 @@ export async function runPipeline(
   interest: string,
   emit: EventEmitter,
   customGithubToken?: string,
-  customGeminiKey?: string
+  customGeminiKey?: string,
+  targetRepo?: string
 ): Promise<PipelineResult> {
   const result: PipelineResult = {
     githubData: null,
@@ -149,13 +150,21 @@ export async function runPipeline(
 
   // ── STEP 3: Issue Hunter ──────────────────────────────
   stepStart = Date.now();
-  emit(makeEvent("step_start", 3, "Issue Hunter", `Searching for open issues matching ${result.skillProfile.primaryLanguages.slice(0, 2).join(", ")} + "${interest}"...`));
+  emit(makeEvent(
+    "step_start",
+    3,
+    "Issue Hunter",
+    targetRepo
+      ? `Searching for open issues in ${targetRepo} matching ${result.skillProfile.primaryLanguages.slice(0, 2).join(", ")} + "${interest}"...`
+      : `Searching for open issues matching ${result.skillProfile.primaryLanguages.slice(0, 2).join(", ")} + "${interest}"...`
+  ));
 
   try {
     result.candidateIssues = await searchMatchingIssues(
       result.skillProfile.primaryLanguages,
       interest,
-      customGithubToken
+      customGithubToken,
+      targetRepo
     );
     const duration = Date.now() - stepStart;
 
