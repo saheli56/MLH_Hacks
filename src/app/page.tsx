@@ -19,9 +19,10 @@ import type {
   PipelineEvent,
 } from "@/lib/types";
 import { STEP_NAMES } from "@/lib/types";
-import { ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork } from "lucide-react";
+import { ArrowRight, Zap, Target, Terminal as TerminalIcon, GitFork, XCircle, AlertTriangle } from "lucide-react";
 import { GitHubIcon } from "@/components/shared/GitHubIcon";
 import { HistorySidebar } from "@/components/shared/HistorySidebar";
+import RepoFitBanner from "@/components/shared/RepoFitBanner"; // Importing the new RepoFitBanner component
 
 // ── Initial State ─────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export default function HomePage() {
   const [steps, setSteps] = useState<StepState[]>(createInitialSteps());
   const [result, setResult] = useState<PipelineResult>(initialResult);
   const [error, setError] = useState<string | null>(null);
+  const [pipelineHaltMessage, setPipelineHaltMessage] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAPIKeyModalOpen, setIsAPIKeyModalOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -93,6 +95,7 @@ export default function HomePage() {
     setShowResults(true);
     setIsComplete(false);
     setError(null);
+    setPipelineHaltMessage(null);
     setSteps(createInitialSteps());
     setResult(initialResult);
     
@@ -180,6 +183,8 @@ export default function HomePage() {
               : s
           )
         );
+        // Clear any previous pipeline halt message on new step
+        setPipelineHaltMessage(null);
         break;
 
       case "step_log":
@@ -230,6 +235,7 @@ export default function HomePage() {
               : s
           )
         );
+        setPipelineHaltMessage(`${event.stepName || "Step"}: ${event.data}`);
         break;
 
       case "pipeline_complete":
@@ -273,6 +279,11 @@ export default function HomePage() {
     if (canGoToResults) {
       setShowResults(true);
     }
+  };
+
+  const handleRelaxRepo = () => {
+    // Re-run without a repository constraint to broaden matches
+    handleRun({ url: githubUrl, interest, repo: "" });
   };
 
   return (
@@ -424,8 +435,8 @@ export default function HomePage() {
                   >
                     <PipelineTrace steps={steps} />
 
-                    {/* Show results below trace when complete */}
-                    {isComplete && result.rankedIssues.length > 0 && (
+                    {/* Show results below trace when complete (render even if no ranked issues so we can show fit messages) */}
+                    {isComplete && (
                       <motion.div
                         className="mt-8"
                         initial={{ opacity: 0, y: 16 }}
@@ -444,7 +455,7 @@ export default function HomePage() {
                             <ArrowRight className="w-3 h-3" />
                           </button>
                         </div>
-                        <ResultsView result={result} />
+                        <ResultsView result={result} repoUrl={repoUrl} interest={interest} onRelaxRepo={handleRelaxRepo} haltMessage={pipelineHaltMessage} />
                       </motion.div>
                     )}
                   </motion.div>
@@ -475,7 +486,7 @@ export default function HomePage() {
                     )}
 
                     {(isComplete || result.skillProfile) && (
-                      <ResultsView result={result} />
+                      <ResultsView result={result} repoUrl={repoUrl} interest={interest} onRelaxRepo={handleRelaxRepo} haltMessage={pipelineHaltMessage} />
                     )}
                   </motion.div>
                 )}
@@ -490,7 +501,24 @@ export default function HomePage() {
 
 // ── Results Sub-Component ─────────────────────────────────
 
-function ResultsView({ result }: { result: PipelineResult }) {
+function ResultsView({ result, repoUrl, interest, onRelaxRepo, haltMessage }: { result: PipelineResult; repoUrl?: string; interest?: string; onRelaxRepo?: () => void; haltMessage?: string | null }) {
+  const parseRepoFullName = (raw: string | undefined) => {
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const m = trimmed.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)(?:\/.*)?$/);
+    if (m) return `${m[1]}/${m[2]}`.toLowerCase();
+    const d = trimmed.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+    if (d) return `${d[1]}/${d[2]}`.toLowerCase();
+    return null;
+  };
+
+  const target = parseRepoFullName(repoUrl);
+  const repoMatches = target
+    ? result.rankedIssues.filter((ri) => ri.candidate.repoFullName && ri.candidate.repoFullName.toLowerCase() === target)
+    : [];
+  const topRepoScore = repoMatches.length > 0 ? Math.max(...repoMatches.map((r) => r.fitScore || 0)) : 0;
+  const repoIsPoorFit = !!target && (repoMatches.length === 0 || topRepoScore < 4);
   return (
     <div className="space-y-6">
       {/* Skill Profile */}
@@ -502,6 +530,27 @@ function ResultsView({ result }: { result: PipelineResult }) {
       )}
 
       {/* Issue Cards */}
+      {haltMessage && (
+        <RepoFitBanner
+          variant="error"
+          title="We stopped here"
+          message={haltMessage}
+          actionLabel="Search across other repos"
+          onAction={() => onRelaxRepo && onRelaxRepo()}
+        />
+      )}
+
+      {repoIsPoorFit && (
+        <RepoFitBanner
+          variant="warning"
+          title="This repository may not be a good fit"
+          message={`We couldn't find strong matches between your skills/interest and issues in`}
+          actionLabel="Search across other repos"
+          onAction={() => onRelaxRepo && onRelaxRepo()}
+          repoName={target}
+          showCopy
+        />
+      )}
       {result.rankedIssues.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-text-muted mb-4 uppercase tracking-wider">
